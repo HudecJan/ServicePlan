@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/Users/jan.hudec/Projects/**)",
+      "Bash(./mvnw compile:*)",
+      "Bash(cd:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}
