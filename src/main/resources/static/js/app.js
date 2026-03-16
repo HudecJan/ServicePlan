@@ -518,7 +518,7 @@ function renderScheduleCalendar() {
             const color = a.doctorColor || '#667eea';
             const style = `background:${color}20; color:${color}; border-left:3px solid ${color};`;
 
-            html += `<div class="shift-badge doctor-color${forcedCls}" style="${style}" title="${a.forced ? a.warning : a.shiftType}" data-assignment-id="${a.id}" data-doctor-name="${a.doctorName}">${icon} ${a.doctorName}</div>`;
+            html += `<div class="shift-badge doctor-color${forcedCls}" style="${style}" title="${a.forced ? a.warning : a.shiftType}" data-assignment-id="${a.id}" data-doctor-name="${a.doctorName}" data-doctor-color="${color}" data-date="${a.date}" data-shift-type="${a.shiftType}">${icon} ${a.doctorName}</div>`;
         });
 
         if (hasWarning) {
@@ -543,24 +543,27 @@ function renderScheduleCalendar() {
 }
 
 function handleSwapClick(badge) {
-    const assignmentId = parseInt(badge.dataset.assignmentId);
-    const doctorName = badge.dataset.doctorName;
+    const info = {
+        id: parseInt(badge.dataset.assignmentId),
+        name: badge.dataset.doctorName,
+        color: badge.dataset.doctorColor,
+        date: badge.dataset.date,
+        shiftType: badge.dataset.shiftType,
+        element: badge
+    };
 
     if (!currentSchedule || currentSchedule.status === 'PUBLISHED') return;
 
     if (!selectedSwapAssignment) {
-        // First click — select
-        selectedSwapAssignment = { id: assignmentId, name: doctorName, element: badge };
+        selectedSwapAssignment = info;
         badge.classList.add('swap-selected');
         updateSwapHint();
-    } else if (selectedSwapAssignment.id === assignmentId) {
-        // Click same — deselect
+    } else if (selectedSwapAssignment.id === info.id) {
         badge.classList.remove('swap-selected');
         selectedSwapAssignment = null;
         updateSwapHint();
     } else {
-        // Second click — swap
-        performSwap(selectedSwapAssignment.id, assignmentId, selectedSwapAssignment.name, doctorName);
+        showSwapModal(selectedSwapAssignment, info);
     }
 }
 
@@ -587,28 +590,104 @@ function updateSwapHint() {
     }
 }
 
-async function performSwap(id1, id2, name1, name2) {
-    if (!confirm(`Vymeniť služby medzi ${name1} a ${name2}?`)) {
-        // Deselect
-        selectedSwapAssignment.element.classList.remove('swap-selected');
-        selectedSwapAssignment = null;
-        updateSwapHint();
-        return;
+function shiftLabel(type) {
+    switch (type) {
+        case 'ON_CALL_WEEKDAY_16H': return '🌙 Služba 16h';
+        case 'ON_CALL_WEEKEND_24H': return '🏥 Služba 24h';
+        case 'ASSISTANT_WEEKEND': return '☀️ Príslužba';
+        default: return type;
     }
+}
+
+function formatSwapDate(dateStr) {
+    const d = new Date(dateStr);
+    return `${d.getDate()}. ${MONTHS[d.getMonth() + 1]}`;
+}
+
+function showSwapModal(a, b) {
+    const html = `
+    <div id="swapModal" class="modal" style="display:flex">
+        <div class="modal-content swap-modal-content">
+            <h3>🔄 Výmena služieb</h3>
+            <p class="swap-subtitle">Naozaj chcete vymeniť tieto dve služby?</p>
+
+            <div class="swap-preview">
+                <div class="swap-card">
+                    <div class="swap-card-color" style="background:${a.color}"></div>
+                    <div class="swap-card-info">
+                        <div class="swap-card-name">${a.name}</div>
+                        <div class="swap-card-detail">${formatSwapDate(a.date)} — ${shiftLabel(a.shiftType)}</div>
+                    </div>
+                </div>
+
+                <div class="swap-arrow">⇄</div>
+
+                <div class="swap-card">
+                    <div class="swap-card-color" style="background:${b.color}"></div>
+                    <div class="swap-card-info">
+                        <div class="swap-card-name">${b.name}</div>
+                        <div class="swap-card-detail">${formatSwapDate(b.date)} — ${shiftLabel(b.shiftType)}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="swap-result">
+                <div class="swap-result-row">
+                    <span class="swap-result-dot" style="background:${a.color}"></span>
+                    ${a.name} → <strong>${formatSwapDate(b.date)}</strong>
+                </div>
+                <div class="swap-result-row">
+                    <span class="swap-result-dot" style="background:${b.color}"></span>
+                    ${b.name} → <strong>${formatSwapDate(a.date)}</strong>
+                </div>
+            </div>
+
+            <div id="swapError" class="swap-error" style="display:none"></div>
+
+            <div class="modal-footer">
+                <button id="confirmSwapBtn" class="btn btn-generate" style="padding:10px 28px;font-size:1em;">
+                    ✅ Vymeniť
+                </button>
+                <button id="cancelSwapBtn" class="btn btn-secondary">Zrušiť</button>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    document.getElementById('confirmSwapBtn').addEventListener('click', () => doSwap(a, b));
+    document.getElementById('cancelSwapBtn').addEventListener('click', () => cancelSwap(a));
+    document.getElementById('swapModal').addEventListener('click', (e) => {
+        if (e.target.id === 'swapModal') cancelSwap(a);
+    });
+}
+
+function cancelSwap(a) {
+    document.getElementById('swapModal').remove();
+    a.element.classList.remove('swap-selected');
+    selectedSwapAssignment = null;
+    updateSwapHint();
+}
+
+async function doSwap(a, b) {
+    const btn = document.getElementById('confirmSwapBtn');
+    btn.textContent = '⏳ Mením...';
+    btn.disabled = true;
 
     try {
         currentSchedule = await api(`/api/schedules/${currentSchedule.id}/swap-two`, {
             method: 'POST',
-            body: JSON.stringify({ assignmentId1: id1, assignmentId2: id2 })
+            body: JSON.stringify({ assignmentId1: a.id, assignmentId2: b.id })
         });
+        document.getElementById('swapModal').remove();
         renderScheduleCalendar();
         loadSummary();
     } catch (e) {
-        alert('Výmena nie je možná: ' + e.message);
-        // Deselect
-        selectedSwapAssignment.element.classList.remove('swap-selected');
-        selectedSwapAssignment = null;
-        updateSwapHint();
+        const errEl = document.getElementById('swapError');
+        errEl.style.display = 'block';
+        errEl.textContent = '❌ ' + e.message;
+        btn.textContent = '✅ Vymeniť';
+        btn.disabled = false;
     }
 }
 
