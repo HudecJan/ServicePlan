@@ -377,6 +377,42 @@ body {
     color: #744210;
 }
 
+/* Swap mode */
+.swap-hint {
+    padding: 10px 16px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: #718096;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.swap-hint.active {
+    background: #ebf8ff;
+    border-color: #90cdf4;
+    color: #2b6cb0;
+}
+
+.shift-badge.swap-selected {
+    outline: 3px solid #3182ce;
+    outline-offset: 1px;
+    animation: pulse-swap 1s infinite;
+    z-index: 1;
+    position: relative;
+}
+
+@keyframes pulse-swap {
+    0%, 100% { outline-color: #3182ce; }
+    50% { outline-color: #90cdf4; }
+}
+
+.shift-badge[data-assignment-id]:hover {
+    opacity: 0.85;
+    transform: scale(1.02);
+}
+
 /* Doctor legend */
 .doctor-legend {
     display: flex;

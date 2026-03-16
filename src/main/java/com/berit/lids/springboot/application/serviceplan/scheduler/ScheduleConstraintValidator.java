@@ -66,9 +66,9 @@ public class ScheduleConstraintValidator {
                 ShiftAssignment current = doctorAssignments.get(i);
                 String doctorName = current.getDoctor().getFirstName() + " " + current.getDoctor().getLastName();
 
-                // Check CANNOT_ON_CALL
+                // Check CANNOT_ON_CALL (skip forced assignments — user explicitly chose them)
                 String key = doctorId + "_" + current.getDate();
-                if (cannotDates.contains(key)) {
+                if (cannotDates.contains(key) && !current.isForced()) {
                     violations.add(current.getDate() + ": " + doctorName + " has CANNOT_ON_CALL preference");
                 }
 
@@ -100,6 +100,58 @@ public class ScheduleConstraintValidator {
                 if (dateEntry.getValue().size() > 1) {
                     violations.add(dateEntry.getKey() + ": " + entry.getValue().get(0).getDoctor().getFirstName()
                             + " has multiple shift assignments on same date");
+                }
+            }
+        }
+
+        return violations;
+    }
+
+    /**
+     * Validate only hard constraints (no preference checks).
+     * Used for manual swaps where the user explicitly decides.
+     */
+    public List<String> validateHardOnly(List<ShiftAssignment> assignments) {
+        List<String> violations = new ArrayList<>();
+
+        Map<Long, List<ShiftAssignment>> byDoctor = assignments.stream()
+                .collect(Collectors.groupingBy(a -> a.getDoctor().getId()));
+
+        for (Map.Entry<Long, List<ShiftAssignment>> entry : byDoctor.entrySet()) {
+            List<ShiftAssignment> doctorAssignments = entry.getValue()
+                    .stream().sorted(Comparator.comparing(ShiftAssignment::getDate)).toList();
+
+            for (int i = 0; i < doctorAssignments.size(); i++) {
+                ShiftAssignment current = doctorAssignments.get(i);
+                String doctorName = current.getDoctor().getFirstName() + " " + current.getDoctor().getLastName();
+
+                // Consecutive on-call
+                if (i + 1 < doctorAssignments.size()) {
+                    ShiftAssignment next = doctorAssignments.get(i + 1);
+                    if (isOnCall(current) && isOnCall(next)
+                            && next.getDate().equals(current.getDate().plusDays(1))) {
+                        violations.add(doctorName + " by mal/a 2 služby po sebe (" + current.getDate() + " a " + next.getDate() + ")");
+                    }
+                }
+
+                // Day-off after on-call
+                if (isOnCall(current)) {
+                    LocalDate nextDay = current.getDate().plusDays(1);
+                    boolean hasNextDayAssignment = byDoctor.getOrDefault(entry.getKey(), List.of()).stream()
+                            .anyMatch(a -> a.getDate().equals(nextDay));
+                    if (hasNextDayAssignment) {
+                        violations.add(doctorName + " by nemal/a voľno po službe " + current.getDate());
+                    }
+                }
+            }
+
+            // Same-day duplicate
+            Map<LocalDate, List<ShiftAssignment>> doctorByDate = doctorAssignments.stream()
+                    .collect(Collectors.groupingBy(ShiftAssignment::getDate));
+            for (Map.Entry<LocalDate, List<ShiftAssignment>> dateEntry : doctorByDate.entrySet()) {
+                if (dateEntry.getValue().size() > 1) {
+                    violations.add(doctorAssignments.get(0).getDoctor().getFirstName()
+                            + " by mal/a 2 služby v ten istý deň " + dateEntry.getKey());
                 }
             }
         }

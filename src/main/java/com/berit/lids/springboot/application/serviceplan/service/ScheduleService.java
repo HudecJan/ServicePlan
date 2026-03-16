@@ -213,6 +213,52 @@ public class ScheduleService {
         return scheduleMapper.toAssignmentDto(assignment);
     }
 
+    @Transactional
+    public ScheduleDto swapTwo(Long scheduleId, Long assignmentId1, Long assignmentId2) {
+        MonthlySchedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new IllegalArgumentException("Rozvrh nenájdený: " + scheduleId));
+
+        if (schedule.getStatus() == ScheduleStatus.PUBLISHED) {
+            throw new IllegalStateException("Nie je možné upravovať publikovaný rozvrh");
+        }
+
+        ShiftAssignment a1 = schedule.getAssignments().stream()
+                .filter(a -> a.getId().equals(assignmentId1))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Priradenie nenájdené: " + assignmentId1));
+
+        ShiftAssignment a2 = schedule.getAssignments().stream()
+                .filter(a -> a.getId().equals(assignmentId2))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Priradenie nenájdené: " + assignmentId2));
+
+        // Swap doctors
+        Doctor doc1 = a1.getDoctor();
+        Doctor doc2 = a2.getDoctor();
+        a1.setDoctor(doc2);
+        a2.setDoctor(doc1);
+
+        // Clear forced flags since this is a manual decision
+        a1.setForced(false);
+        a1.setWarning(null);
+        a2.setForced(false);
+        a2.setWarning(null);
+
+        // Validate only hard constraints (consecutive shifts, day-off) — skip preference checks
+        // since swap is an explicit manual decision
+        List<String> violations = constraintValidator.validateHardOnly(schedule.getAssignments());
+
+        if (!violations.isEmpty()) {
+            a1.setDoctor(doc1);
+            a2.setDoctor(doc2);
+            throw new IllegalStateException("Výmena porušuje pravidlá: " + String.join("; ", violations));
+        }
+
+        assignmentRepository.save(a1);
+        assignmentRepository.save(a2);
+        return scheduleMapper.toDto(schedule);
+    }
+
     @Transactional(readOnly = true)
     public ScheduleSummaryDto getSummary(Long scheduleId) {
         MonthlySchedule schedule = scheduleRepository.findById(scheduleId)

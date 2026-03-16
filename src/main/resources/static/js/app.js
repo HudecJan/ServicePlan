@@ -6,6 +6,7 @@ let currentMonth = new Date().getMonth() + 1;
 let doctors = [];
 let selectedDoctorId = null;
 let currentSchedule = null;
+let selectedSwapAssignment = null; // for swap mode
 
 const MONTHS = ['', 'Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
     'Júl', 'August', 'September', 'Október', 'November', 'December'];
@@ -517,7 +518,7 @@ function renderScheduleCalendar() {
             const color = a.doctorColor || '#667eea';
             const style = `background:${color}20; color:${color}; border-left:3px solid ${color};`;
 
-            html += `<div class="shift-badge doctor-color${forcedCls}" style="${style}" title="${a.forced ? a.warning : a.shiftType}">${icon} ${a.doctorName}</div>`;
+            html += `<div class="shift-badge doctor-color${forcedCls}" style="${style}" title="${a.forced ? a.warning : a.shiftType}" data-assignment-id="${a.id}" data-doctor-name="${a.doctorName}">${icon} ${a.doctorName}</div>`;
         });
 
         if (hasWarning) {
@@ -526,6 +527,89 @@ function renderScheduleCalendar() {
 
         return html;
     }, null);
+
+    // Attach swap click handlers to shift badges
+    selectedSwapAssignment = null;
+    updateSwapHint();
+    setTimeout(() => {
+        document.querySelectorAll('#schedCalendar .shift-badge[data-assignment-id]').forEach(badge => {
+            badge.style.cursor = 'pointer';
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleSwapClick(badge);
+            });
+        });
+    }, 0);
+}
+
+function handleSwapClick(badge) {
+    const assignmentId = parseInt(badge.dataset.assignmentId);
+    const doctorName = badge.dataset.doctorName;
+
+    if (!currentSchedule || currentSchedule.status === 'PUBLISHED') return;
+
+    if (!selectedSwapAssignment) {
+        // First click — select
+        selectedSwapAssignment = { id: assignmentId, name: doctorName, element: badge };
+        badge.classList.add('swap-selected');
+        updateSwapHint();
+    } else if (selectedSwapAssignment.id === assignmentId) {
+        // Click same — deselect
+        badge.classList.remove('swap-selected');
+        selectedSwapAssignment = null;
+        updateSwapHint();
+    } else {
+        // Second click — swap
+        performSwap(selectedSwapAssignment.id, assignmentId, selectedSwapAssignment.name, doctorName);
+    }
+}
+
+function updateSwapHint() {
+    let hint = document.getElementById('swapHint');
+    if (!hint) {
+        hint = document.createElement('div');
+        hint.id = 'swapHint';
+        hint.className = 'swap-hint';
+        const calendar = document.getElementById('schedCalendar');
+        calendar.parentNode.insertBefore(hint, calendar);
+    }
+
+    if (!currentSchedule || currentSchedule.status === 'PUBLISHED') {
+        hint.style.display = 'none';
+    } else if (selectedSwapAssignment) {
+        hint.style.display = 'block';
+        hint.innerHTML = `🔄 Vybraný: <strong>${selectedSwapAssignment.name}</strong> — kliknite na druhú službu pre výmenu, alebo znova na tú istú pre zrušenie`;
+        hint.className = 'swap-hint active';
+    } else {
+        hint.style.display = 'block';
+        hint.innerHTML = '💡 Kliknite na službu v kalendári pre výmenu dvoch lekárov medzi sebou';
+        hint.className = 'swap-hint';
+    }
+}
+
+async function performSwap(id1, id2, name1, name2) {
+    if (!confirm(`Vymeniť služby medzi ${name1} a ${name2}?`)) {
+        // Deselect
+        selectedSwapAssignment.element.classList.remove('swap-selected');
+        selectedSwapAssignment = null;
+        updateSwapHint();
+        return;
+    }
+
+    try {
+        currentSchedule = await api(`/api/schedules/${currentSchedule.id}/swap-two`, {
+            method: 'POST',
+            body: JSON.stringify({ assignmentId1: id1, assignmentId2: id2 })
+        });
+        renderScheduleCalendar();
+        loadSummary();
+    } catch (e) {
+        alert('Výmena nie je možná: ' + e.message);
+        // Deselect
+        selectedSwapAssignment.element.classList.remove('swap-selected');
+        selectedSwapAssignment = null;
+        updateSwapHint();
+    }
 }
 
 function showScheduleStatus() {

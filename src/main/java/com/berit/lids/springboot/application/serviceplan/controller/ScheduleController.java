@@ -40,6 +40,11 @@ public class ScheduleController {
         return scheduleService.swapAssignment(id, assignmentId, request.getNewDoctorId());
     }
 
+    @PostMapping("/{id}/swap-two")
+    public ScheduleDto swapTwo(@PathVariable Long id, @Valid @RequestBody SwapTwoRequest request) {
+        return scheduleService.swapTwo(id, request.getAssignmentId1(), request.getAssignmentId2());
+    }
+
     @PostMapping("/{id}/publish")
     public ScheduleDto publish(@PathVariable Long id) {
         return scheduleService.publishSchedule(id);
