@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plánovanie služieb</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>🏥 Plánovanie služieb lekárov</h1>
+            <p class="subtitle">Nemocničné oddelenie — mesačný rozvrh služieb</p>
+        </header>
+
+        <div class="controls">
+            <div class="month-selector">
+                <button id="prevMonth" class="btn btn-icon" title="Predchádzajúci mesiac">◀</button>
+                <span id="currentMonth" class="month-label"></span>
+                <button id="nextMonth" class="btn btn-icon" title="Nasledujúci mesiac">▶</button>
+            </div>
+            <div class="tab-bar">
+                <button class="tab active" data-tab="preferences">📋 Preferencie</button>
+                <button class="tab" data-tab="schedule">📅 Rozvrh</button>
+                <button class="tab" data-tab="doctors">👨‍⚕️ Lekári</button>
+            </div>
+        </div>
+
+        <!-- PREFERENCES TAB -->
+        <div id="preferencesTab" class="tab-content active">
+            <div class="preferences-header">
+                <div class="doctor-selector">
+                    <label for="doctorSelect">Lekár:</label>
+                    <select id="doctorSelect"></select>
+                    <div class="extra-counter">
+                        <button id="extraMinus" class="btn btn-icon btn-extra-minus" title="Odobrať extra">−</button>
+                        <span id="extraCount" class="extra-count">0 extra</span>
+                        <button id="extraPlus" class="btn btn-icon btn-extra-plus" title="Pridať extra">+</button>
+                    </div>
+                </div>
+                <div class="legend">
+                    <span class="legend-item"><span class="dot want"></span> Chcem slúžiť</span>
+                    <span class="legend-item"><span class="dot cannot"></span> Nemôžem slúžiť</span>
+                </div>
+            </div>
+
+            <div id="prefCalendar" class="calendar"></div>
+
+            <div class="pref-actions">
+                <p class="hint">Kliknite na deň v kalendári pre nastavenie preferencie. Kliknite znova pre zmenu alebo odstránenie.</p>
+            </div>
+
+            <div class="all-preferences">
+                <h3>Prehľad preferencií všetkých lekárov</h3>
+                <div id="allPrefsGrid" class="all-prefs-grid"></div>
+            </div>
+        </div>
+
+        <!-- SCHEDULE TAB -->
+        <div id="scheduleTab" class="tab-content">
+            <div class="schedule-actions">
+                <button id="generateBtn" class="btn btn-generate">
+                    ⚡ Vygenerovať rozvrh
+                </button>
+                <button id="exportBtn" class="btn btn-export" style="display:none;">
+                    📥 Exportovať do CSV
+                </button>
+                <button id="publishBtn" class="btn btn-publish" style="display:none;">
+                    ✅ Publikovať rozvrh
+                </button>
+            </div>
+
+            <div id="scheduleStatus" class="schedule-status" style="display:none;"></div>
+
+            <div id="doctorLegend" class="doctor-legend"></div>
+
+            <div id="schedCalendar" class="calendar schedule-calendar"></div>
+
+            <div id="summarySection" class="summary-section" style="display:none;">
+                <h3>📊 Štatistiky spravodlivosti</h3>
+                <div id="summaryTable"></div>
+            </div>
+        </div>
+        <!-- DOCTORS TAB -->
+        <div id="doctorsTab" class="tab-content">
+            <div class="doctors-section">
+                <div class="doctors-header">
+                    <h3>Správa lekárov</h3>
+                    <button id="addDoctorBtn" class="btn btn-add-doctor">+ Pridať lekára</button>
+                </div>
+                <div id="doctorsList" class="doctors-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Doctor Edit Modal -->
+    <div id="doctorModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3 id="doctorModalTitle">Nový lekár</h3>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="docFirstName">Meno:</label>
+                    <input type="text" id="docFirstName" placeholder="napr. Kika">
+                </div>
+                <div class="form-group">
+                    <label for="docLastName">Priezvisko:</label>
+                    <input type="text" id="docLastName" placeholder="napr. Kováčová">
+                </div>
+                <div class="form-group">
+                    <label for="docEmail">Email:</label>
+                    <input type="email" id="docEmail" placeholder="napr. kika@nemocnica.sk">
+                </div>
+                <div class="form-group">
+                    <label for="docColor">Farba:</label>
+                    <input type="color" id="docColor" value="#667eea">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveDoctorBtn" class="btn btn-generate" style="padding:10px 24px;font-size:1em;">Uložiť</button>
+                <button id="closeDoctorModal" class="btn btn-secondary">Zavrieť</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preference Modal -->
+    <div id="prefModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3 id="modalTitle">Preferencia</h3>
+            <div class="modal-body">
+                <div class="pref-options">
+                    <button class="pref-btn want" data-pref="WANT_ON_CALL">✅ Chcem slúžiť</button>
+                    <button class="pref-btn cannot" data-pref="CANNOT_ON_CALL">❌ Nemôžem slúžiť</button>
+                </div>
+                <div class="modal-note">
+                    <label for="prefNote">Poznámka (voliteľné):</label>
+                    <input type="text" id="prefNote" placeholder="napr. dovolenka, svadba...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="removePref" class="btn btn-danger" style="display:none;">🗑 Odstrániť</button>
+                <button id="closeModal" class="btn btn-secondary">Zavrieť</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
